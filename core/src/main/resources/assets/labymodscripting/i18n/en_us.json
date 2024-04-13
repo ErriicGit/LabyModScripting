@@ -1,0 +1,10 @@
+{
+  "labymodscripting": {
+    "settings": {
+      "name": "Scripting Addon",
+      "enabled": {
+        "name": "Enabled"
+      }
+    }
+  }
+}
