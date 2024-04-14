@@ -6,8 +6,12 @@ plugins {
 
 dependencies {
     api(project(":api"))
-    implementation("org.graalvm.js:js:23.0.0")
-    implementation("commons-io:commons-io:2.13.0")
+    maven(mavenCentral(), "org.graalvm.js:js:23.0.0")
+    maven(mavenCentral(), "org.graalvm.regex:regex:23.0.0")
+    maven(mavenCentral(), "org.graalvm.truffle:truffle-api:23.0.0")
+    maven(mavenCentral(), "org.graalvm.sdk:graal-sdk:23.0.0")
+    maven(mavenCentral(), "com.ibm.icu:icu4j:72.1")
+    maven(mavenCentral(), "commons-io:commons-io:2.13.0")
 
     // If you want to use external libraries, you can do that here.
     // The dependencies that are specified here are loaded into your project but will also
