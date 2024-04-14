@@ -11,10 +11,14 @@ import me.erriic.labymodscripting.bridge.FileSystemBridge;
 import me.erriic.labymodscripting.bridge.HandBridge;
 import me.erriic.labymodscripting.bridge.LabyBridge;
 import me.erriic.labymodscripting.bridge.MethodBridge;
+import me.erriic.labymodscripting.bridge.PlayerBridge;
 import me.erriic.labymodscripting.bridge.RequestBridge;
 import net.labymod.api.Constants;
 import net.labymod.api.Laby;
 import net.labymod.api.event.Event;
+import net.labymod.api.util.io.web.request.Callback;
+import net.labymod.api.util.io.web.request.Request.Method;
+import net.labymod.api.util.io.web.request.Response;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Value;
 
@@ -63,6 +67,7 @@ public class Script {
     jsBindings.putMember("Component", new ComponentBridge());
     jsBindings.putMember("Chat", new ChatBridge());
     jsBindings.putMember("Hand", new HandBridge());
+    jsBindings.putMember("Player", new PlayerBridge());
     jsBindings.putMember("Request", new RequestBridge());
     jsBindings.putMember("Method", new MethodBridge());
     jsBindings.putMember("FileSystem", new FileSystemBridge());

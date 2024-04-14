@@ -17,7 +17,7 @@ labyMod {
         author = "Erriic"
         description = "Scripting in Labymod"
         minecraftVersion = "*"
-        version = System.getenv().getOrDefault("VERSION", "0.0.1")
+        version = System.getenv().getOrDefault("VERSION", "1.0.0")
     }
 
     minecraft {

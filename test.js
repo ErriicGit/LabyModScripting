@@ -1,0 +1,1 @@
+Chat.log('§aTEST');
