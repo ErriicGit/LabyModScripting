@@ -1,24 +1,22 @@
 package me.erriic.labymodscripting;
 
+import java.lang.reflect.Constructor;
+import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.lang.reflect.Modifier;
+import java.lang.reflect.Parameter;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import me.erriic.labymodscripting.bridge.ChatBridge;
-import me.erriic.labymodscripting.bridge.ComponentBridge;
-import me.erriic.labymodscripting.bridge.FileSystemBridge;
-import me.erriic.labymodscripting.bridge.HandBridge;
-import me.erriic.labymodscripting.bridge.LabyBridge;
-import me.erriic.labymodscripting.bridge.MethodBridge;
-import me.erriic.labymodscripting.bridge.PlayerBridge;
-import me.erriic.labymodscripting.bridge.RequestBridge;
+import me.erriic.labymodscripting.bridge.RefelctionBridge;
 import net.labymod.api.Constants;
 import net.labymod.api.Laby;
 import net.labymod.api.event.Event;
-import net.labymod.api.util.io.web.request.Callback;
-import net.labymod.api.util.io.web.request.Request.Method;
-import net.labymod.api.util.io.web.request.Response;
 import org.graalvm.polyglot.Context;
 import org.graalvm.polyglot.Value;
 
@@ -60,18 +58,11 @@ public class Script {
   private Script(String name, String script){
     this.name = name;
     this.script = script;
-    this.ctx = Context.newBuilder().allowAllAccess(true).option("js.ecmascript-version", "13").option("js.commonjs-require", "true").option("js.commonjs-require-cwd", Constants.Files.CONFIGS.toAbsolutePath().toString()).build();
+    this.ctx = Context.newBuilder().allowAllAccess(true).option("js.ecmascript-version", "13").option("engine.WarnInterpreterOnly", "false").option("js.commonjs-require", "true").option("js.commonjs-require-cwd", Constants.Files.CONFIGS.toAbsolutePath().toString()).build();
     Value jsBindings = this.ctx.getBindings("js");
     jsBindings.putMember("Script", this);
-    jsBindings.putMember("Laby", new LabyBridge());
-    jsBindings.putMember("Component", new ComponentBridge());
-    jsBindings.putMember("Chat", new ChatBridge());
-    jsBindings.putMember("Hand", new HandBridge());
-    jsBindings.putMember("Player", new PlayerBridge());
-    jsBindings.putMember("Request", new RequestBridge());
-    jsBindings.putMember("Method", new MethodBridge());
-    jsBindings.putMember("FileSystem", new FileSystemBridge());
-    Value polyglotBindings = this.ctx.getPolyglotBindings();
+    jsBindings.putMember("Reflection", new RefelctionBridge());
+    //Value polyglotBindings = this.ctx.getPolyglotBindings();
   }
 
   private Script(String name, String script, Path location){
@@ -136,6 +127,106 @@ public class Script {
   public void unregisterAllEvents(){
     this.events.forEach((event) -> Laby.labyAPI().eventBus().registry().unregister(event));
     this.events.clear();
+  }
+
+  public void bind(String binding, String name, boolean object) throws ClassNotFoundException {
+    if(object){
+      ctx.eval("js", binding + " = " + name + ";");
+    } else {
+      //TODO: add all methods with the name newInstance or field_*
+      String code = binding + " = class {";
+      Class<?> c = Class.forName(name);
+      Method[] methods = c.getMethods();
+      Constructor[] constructors = c.getConstructors();
+      Field[] finalFields = Arrays.stream(c.getFields())
+          .filter(field -> Modifier.isStatic(field.getModifiers()) && Modifier.isFinal(field.getModifiers()))
+          .toArray(Field[]::new);
+      Field[] fields = Arrays.stream(c.getFields())
+          .filter(field -> Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers()))
+          .toArray(Field[]::new);
+      Map<String, List<Method>> methodMap = new HashMap<>();
+      for (Method method : methods) {
+        if(Modifier.isStatic(method.getModifiers())) {
+          methodMap.computeIfAbsent(method.getName(), k -> new ArrayList<>()).add(method);
+        }
+      }
+      //finalFields
+      for(Field field : finalFields){
+        code += " static " + field.getName() + " = Reflection.getClass('" + field.getType().getName() + "').cast(Reflection.getClass('" + name + "').getField('" + field.getName() + "').get(null));";
+      }
+      //Fileds
+      for (Field field : fields){
+        code += " static field_" + field.getName() + "(...args) { if(args.length==1) { return Reflection.getClass('" + field.getType().getName() + "').cast(Reflection.getClass('" + name + "').getField('" + field.getName() + "').set(null, args[0]))}"
+            + " else { return Reflection.getClass('" + field.getType().getName() + "').cast(Reflection.getClass('" + name + "').getField('" + field.getName() + "').get(null));}}";
+      }
+      //constructor
+      code += " static newInstance(...args){";
+      for(int i = 0; i < constructors.length; i++){
+        Constructor con = constructors[i];
+        if (i == 0) {
+          code += "if(";
+        } else {
+          code += "else if(";
+        }
+        code += con.getParameters().length==0?"true":"";
+        for(int i2 = 0; i2 < con.getParameters().length; i2++){
+          Parameter par = con.getParameters()[i2];
+          if(i2>0){
+            code += "&&";
+          }
+          code += "args[" + i2 + "] instanceof Reflection.getPrimitiveClass('" + par.getType().getName() + "')";
+        }
+        code += "){ return Reflection.getClass('" + name + "').cast(Reflection.getClass('" + name + "').getConstructor(";
+        for(int i2 = 0; i2 < con.getParameters().length; i2++){
+          if(i2>0){code+=", ";}
+          Parameter par = con.getParameters()[i2];
+          code += "Reflection.getPrimitiveClass('" + par.getType().getName() + "')";
+        }
+        code += ").newInstance(";
+        for(int i2 = 0; i2 < con.getParameters().length; i2++){
+          if(i2>0){code+=", ";}
+          code += "args[" + i2 + "]";
+        }
+        code += "));}";
+      }
+      code +="}";
+
+      //methods
+      for (Map.Entry<String, List<Method>> entry : methodMap.entrySet()) {
+        String methodName = entry.getKey();
+        List<Method> overloadedMethods = entry.getValue();
+        code += " static " + methodName + "(...args){";
+        for (int i = 0; i < overloadedMethods.size(); i++) {
+          Method meth = overloadedMethods.get(i);
+          if (i == 0) {
+            code += "if(";
+          } else {
+            code += "else if(";
+          }
+          code += meth.getParameters().length==0?"true":"";
+          for(int i2 = 0; i2 < meth.getParameters().length; i2++){
+            Parameter par = meth.getParameters()[i2];
+            if(i2>0){
+              code += "&&";
+            }
+            code += "args[" + i2 + "] instanceof Reflection.getPrimitiveClass('" + par.getType().getName() + "')";
+          }
+          code += "){ return Reflection.getClass('" + meth.getReturnType().getName() + "').cast(Reflection.getClass('" + name + "').getMethod('" + methodName + "'";
+          for(int i2 = 0; i2 < meth.getParameters().length; i2++){
+            Parameter par = meth.getParameters()[i2];
+            code += ", Reflection.getPrimitiveClass('" + par.getType().getName() + "')";
+          }
+          code += ").invoke(null";
+          for(int i2 = 0; i2 < meth.getParameters().length; i2++){
+            code += ", args[" + i2 + "]";
+          }
+          code += "));}";
+        }
+        code += "}";
+      }
+      code += "}";
+      ctx.eval("js", code);
+    }
   }
 
   public boolean isRunning() {
