@@ -129,104 +129,100 @@ public class Script {
     this.events.clear();
   }
 
-  public void bind(String binding, String name, boolean object) throws ClassNotFoundException {
-    if(object){
-      ctx.eval("js", binding + " = " + name + ";");
-    } else {
-      //TODO: add all methods with the name newInstance or field_*
-      String code = binding + " = class {";
-      Class<?> c = Class.forName(name);
-      Method[] methods = c.getMethods();
-      Constructor[] constructors = c.getConstructors();
-      Field[] finalFields = Arrays.stream(c.getFields())
-          .filter(field -> Modifier.isStatic(field.getModifiers()) && Modifier.isFinal(field.getModifiers()))
-          .toArray(Field[]::new);
-      Field[] fields = Arrays.stream(c.getFields())
-          .filter(field -> Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers()))
-          .toArray(Field[]::new);
-      Map<String, List<Method>> methodMap = new HashMap<>();
-      for (Method method : methods) {
-        if(Modifier.isStatic(method.getModifiers())) {
-          methodMap.computeIfAbsent(method.getName(), k -> new ArrayList<>()).add(method);
+  public void bind(String binding, String className) throws ClassNotFoundException {
+    //TODO: add all methods with the name newInstance or field_*
+    String code = binding + " = class {";
+    Class<?> c = Class.forName(className);
+    Method[] methods = c.getMethods();
+    Constructor[] constructors = c.getConstructors();
+    Field[] finalFields = Arrays.stream(c.getFields())
+        .filter(field -> Modifier.isStatic(field.getModifiers()) && Modifier.isFinal(field.getModifiers()))
+        .toArray(Field[]::new);
+    Field[] fields = Arrays.stream(c.getFields())
+        .filter(field -> Modifier.isStatic(field.getModifiers()) && !Modifier.isFinal(field.getModifiers()))
+        .toArray(Field[]::new);
+    Map<String, List<Method>> methodMap = new HashMap<>();
+    for (Method method : methods) {
+      if(Modifier.isStatic(method.getModifiers())) {
+        methodMap.computeIfAbsent(method.getName(), k -> new ArrayList<>()).add(method);
+      }
+    }
+    //finalFields
+    for(Field field : finalFields){
+      code += " static " + field.getName() + " = Reflection.getClass('" + field.getType().getName() + "').cast(Reflection.getClass('" + className + "').getField('" + field.getName() + "').get(null));";
+    }
+    //Fileds
+    for (Field field : fields){
+      code += " static field_" + field.getName() + "(...args) { if(args.length==1) { return Reflection.getClass('" + field.getType().getName() + "').cast(Reflection.getClass('" + className + "').getField('" + field.getName() + "').set(null, args[0]))}"
+          + " else { return Reflection.getClass('" + field.getType().getName() + "').cast(Reflection.getClass('" + className + "').getField('" + field.getName() + "').get(null));}}";
+    }
+    //constructor
+    code += " static newInstance(...args){";
+    for(int i = 0; i < constructors.length; i++){
+      Constructor con = constructors[i];
+      if (i == 0) {
+        code += "if(";
+      } else {
+        code += "else if(";
+      }
+      code += con.getParameters().length==0?"true":"";
+      for(int i2 = 0; i2 < con.getParameters().length; i2++){
+        Parameter par = con.getParameters()[i2];
+        if(i2>0){
+          code += "&&";
         }
+        code += "args[" + i2 + "] instanceof Reflection.getPrimitiveClass('" + par.getType().getName() + "')";
       }
-      //finalFields
-      for(Field field : finalFields){
-        code += " static " + field.getName() + " = Reflection.getClass('" + field.getType().getName() + "').cast(Reflection.getClass('" + name + "').getField('" + field.getName() + "').get(null));";
+      code += "){ return Reflection.getClass('" + className + "').cast(Reflection.getClass('" + className + "').getConstructor(";
+      for(int i2 = 0; i2 < con.getParameters().length; i2++){
+        if(i2>0){code+=", ";}
+        Parameter par = con.getParameters()[i2];
+        code += "Reflection.getPrimitiveClass('" + par.getType().getName() + "')";
       }
-      //Fileds
-      for (Field field : fields){
-        code += " static field_" + field.getName() + "(...args) { if(args.length==1) { return Reflection.getClass('" + field.getType().getName() + "').cast(Reflection.getClass('" + name + "').getField('" + field.getName() + "').set(null, args[0]))}"
-            + " else { return Reflection.getClass('" + field.getType().getName() + "').cast(Reflection.getClass('" + name + "').getField('" + field.getName() + "').get(null));}}";
+      code += ").newInstance(";
+      for(int i2 = 0; i2 < con.getParameters().length; i2++){
+        if(i2>0){code+=", ";}
+        code += "args[" + i2 + "]";
       }
-      //constructor
-      code += " static newInstance(...args){";
-      for(int i = 0; i < constructors.length; i++){
-        Constructor con = constructors[i];
+      code += "));}";
+    }
+    code +="}";
+
+    //methods
+    for (Map.Entry<String, List<Method>> entry : methodMap.entrySet()) {
+      String methodName = entry.getKey();
+      List<Method> overloadedMethods = entry.getValue();
+      code += " static " + methodName + "(...args){";
+      for (int i = 0; i < overloadedMethods.size(); i++) {
+        Method meth = overloadedMethods.get(i);
         if (i == 0) {
           code += "if(";
         } else {
           code += "else if(";
         }
-        code += con.getParameters().length==0?"true":"";
-        for(int i2 = 0; i2 < con.getParameters().length; i2++){
-          Parameter par = con.getParameters()[i2];
+        code += meth.getParameters().length==0?"true":"";
+        for(int i2 = 0; i2 < meth.getParameters().length; i2++){
+          Parameter par = meth.getParameters()[i2];
           if(i2>0){
             code += "&&";
           }
           code += "args[" + i2 + "] instanceof Reflection.getPrimitiveClass('" + par.getType().getName() + "')";
         }
-        code += "){ return Reflection.getClass('" + name + "').cast(Reflection.getClass('" + name + "').getConstructor(";
-        for(int i2 = 0; i2 < con.getParameters().length; i2++){
-          if(i2>0){code+=", ";}
-          Parameter par = con.getParameters()[i2];
-          code += "Reflection.getPrimitiveClass('" + par.getType().getName() + "')";
+        code += "){ return Reflection.getClass('" + meth.getReturnType().getName() + "').cast(Reflection.getClass('" + className + "').getMethod('" + methodName + "'";
+        for(int i2 = 0; i2 < meth.getParameters().length; i2++){
+          Parameter par = meth.getParameters()[i2];
+          code += ", Reflection.getPrimitiveClass('" + par.getType().getName() + "')";
         }
-        code += ").newInstance(";
-        for(int i2 = 0; i2 < con.getParameters().length; i2++){
-          if(i2>0){code+=", ";}
-          code += "args[" + i2 + "]";
+        code += ").invoke(null";
+        for(int i2 = 0; i2 < meth.getParameters().length; i2++){
+          code += ", args[" + i2 + "]";
         }
         code += "));}";
       }
-      code +="}";
-
-      //methods
-      for (Map.Entry<String, List<Method>> entry : methodMap.entrySet()) {
-        String methodName = entry.getKey();
-        List<Method> overloadedMethods = entry.getValue();
-        code += " static " + methodName + "(...args){";
-        for (int i = 0; i < overloadedMethods.size(); i++) {
-          Method meth = overloadedMethods.get(i);
-          if (i == 0) {
-            code += "if(";
-          } else {
-            code += "else if(";
-          }
-          code += meth.getParameters().length==0?"true":"";
-          for(int i2 = 0; i2 < meth.getParameters().length; i2++){
-            Parameter par = meth.getParameters()[i2];
-            if(i2>0){
-              code += "&&";
-            }
-            code += "args[" + i2 + "] instanceof Reflection.getPrimitiveClass('" + par.getType().getName() + "')";
-          }
-          code += "){ return Reflection.getClass('" + meth.getReturnType().getName() + "').cast(Reflection.getClass('" + name + "').getMethod('" + methodName + "'";
-          for(int i2 = 0; i2 < meth.getParameters().length; i2++){
-            Parameter par = meth.getParameters()[i2];
-            code += ", Reflection.getPrimitiveClass('" + par.getType().getName() + "')";
-          }
-          code += ").invoke(null";
-          for(int i2 = 0; i2 < meth.getParameters().length; i2++){
-            code += ", args[" + i2 + "]";
-          }
-          code += "));}";
-        }
-        code += "}";
-      }
       code += "}";
-      ctx.eval("js", code);
     }
+    code += "}";
+    ctx.eval("js", code);
   }
 
   public boolean isRunning() {

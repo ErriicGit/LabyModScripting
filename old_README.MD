@@ -29,9 +29,40 @@ You can now stop it with
 ## Classes
 There is a handful of Classes that allow you to interact with the Game.  
 So far there is:
+>### Chat
+> For accessing the Chat
+> - ``log(String message)`` To display a simple string in chat
+> - ``log(Component message)`` To display a component in chat
+> - ``getMaxHistorySize()`` To get the maximum size of the chat history. Returns ``int``
+> - ``getMessages()`` To get a list of all messages. Returns ``List<ChatMessage>``
+> - ``addMessage(Compontent message)`` To display a component in chat. Returns ``ChatMessage``
+> - ``addMessage(Builder builder)`` To display a message in chat. Returns ``ChatMessage``
+> - ``addMessage(ChatMessage message)`` To display a message in chat. Returns ``ChatMessage``
+> - ``clear()`` To clear the chat.
+> - ``messageAt(int index)`` To get the message at a certain position. Returns ``ChatMessage``
+> #### Example
+> ```
+> Chat.log("Hello World");
+> ```
+
+>### Component
+> For creating Components
+> - ``text(String text)`` To get a component from a String. Returns TextComponent
+> #### Example
+> ```
+> Chat.log(Component.text("Hello World"));
+> ```
+
+>### FileSystem
+> For accessing the FileSystem
+> - ``writeString(Path path, String string, OpenOption option)`` To write a string to a text file. Returns ``Path``
+
+>### Laby
+> For accessing the LabyMod API
+> - ``labyAPI()`` To get access to the LabyMod-API. Returns ``LabyAPI``
+
 >### Script
 > For interaction with the own script and adding Commands as well as Listeners
-> - ``bind(String binding, String className)`` This method is used to bind Classes. It creates a javascript interface for the java class using reflections
 > - ``start()`` To start the Script. Throws ``IllegalStateException``
 > - ``stop()`` To stop the Script. Throws ``IllegalStateException``
 > - ``registerEvent(String className, Consumer<Event> handler)`` To register a new Event-Listener. Returns ``CustomSubscribeMethod``
@@ -46,34 +77,53 @@ So far there is:
 > - ``getRoot()`` To get the root path of the script. Returns ``Path``
 > - ``getScript()`` To get the whole script as one string. Returns ``String``
 > - ``getAddonVersion()`` To get the Version of the LabyModScripting-Addon. Can be used to check compatibility. Returns ``String``
-> #### Examples
-> ##### Bindings
-> ```
-> Script.bind("Laby", "net.labymod.api.Laby");
-> ```
-> ##### Events
+> #### Example
 > ```
 > worldEvent = Script.registerEvent("net.labymod.api.event.client.world.WorldEnterEvent", (event) -> {
->   console.log("Hello World");
+>   Chat.log("Hello World");
 > });
 > Script.unregisterEvent(worldEvent);
 > ```
-> ##### Commands
+
+>### Hand
+> Hand selection
+> - ``MAIN_HAND`` Is ``Hand``
+> - ``OFF_HAND`` Is ``Hand``
+> - ``valueOf(String hand)`` Returns ``Hand``
+> - ``values()`` Returns ``Hand[]``
+
+>### Request
+> For making http requests. It uses the LabyMod Requests, thus having the same syntax.
+> - **TODO**
+>#### Example
 > ```
-> customCommand = Script.registerCommand("customcommand", (prefix, args) => {
->     console.log("You entered the custom command");
+> Request.ofString().method(Method.GET).async().url("https://example.com").readTimeout(3000).connectTimeout(3000).execute((response) => {
+>   Chat.log(response.get());
 > });
-> Script.unregisterCommand(customCommand);
 > ```
 
->### Reflection
-> Used to do Reflections on Java Classes
->  - ``getClass(String className)`` To get the class associated with the given name. For primitives this will return the corresponding wrapper class
->  - ``getPrimitiveClass(String className)`` Works similar to ``getClass(String className)`` but returns the actual primitive class
+>### Method
+> A method for a Request like GET or POST
+> - ``GET``
+> - ``HEAD``
+> - ``CONNECT``
+> - ``DELETE``
+> - ``OPTIONS``
+> - ``PATCH``
+> - ``POST``
+> - ``PUT``
+> - ``TRACE``
+
+>### Player
+> For accessing the Player. A shortcut for ``Laby.labyAPI().minecraft().getClientPlayer()``
+> - **TODO**
+> - >#### Example
+> ```
+> Player.swingArm(Hand.MAIN_HAND);
+> ```
 
 ## Planed Features
 - Async script execution
 - A text-editor with syntax-highlighting and suggestions
-- Executing single javascript lines via a command
-- Installation of scripts
-- An easy way to add and access settings fom scripts
+- Add more methods to ``Component``
+- Add more methods to ``FileSystem``
