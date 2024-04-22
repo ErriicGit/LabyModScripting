@@ -46,6 +46,8 @@ So far there is:
 > - ``getRoot()`` To get the root path of the script. Returns ``Path``
 > - ``getScript()`` To get the whole script as one string. Returns ``String``
 > - ``getAddonVersion()`` To get the Version of the LabyModScripting-Addon. Can be used to check compatibility. Returns ``String``
+> - ``getClass(String className)`` To get the class associated with the given name. For primitives this will return the corresponding wrapper class
+> - ``getPrimitiveClass(String className)`` Works similar to ``getClass(String className)`` but returns the actual primitive class
 > #### Examples
 > ##### Bindings
 > ```
@@ -66,14 +68,7 @@ So far there is:
 > Script.unregisterCommand(customCommand);
 > ```
 
->### Reflection
-> Used to do Reflections on Java Classes
->  - ``getClass(String className)`` To get the class associated with the given name. For primitives this will return the corresponding wrapper class
->  - ``getPrimitiveClass(String className)`` Works similar to ``getClass(String className)`` but returns the actual primitive class
-
 ## Planed Features
-- Async script execution
 - A text-editor with syntax-highlighting and suggestions
-- Executing single javascript lines via a command
 - Installation of scripts
 - An easy way to add and access settings fom scripts

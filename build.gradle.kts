@@ -7,7 +7,7 @@ plugins {
 group = "me.erriic"
 version = "1.0.0"
 
-java.toolchain.languageVersion.set(JavaLanguageVersion.of(17))
+java.toolchain.languageVersion.set(JavaLanguageVersion.of(21))
 
 labyMod {
     defaultPackageName = "me.erriic" //change this to your main package name (used by all modules)

@@ -1,10 +1,14 @@
 package me.erriic.labymodscripting;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.IOException;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.lang.reflect.Parameter;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -13,16 +17,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
-import me.erriic.labymodscripting.bridge.RefelctionBridge;
 import net.labymod.api.Constants;
 import net.labymod.api.Laby;
 import net.labymod.api.event.Event;
+import org.apache.commons.io.IOUtils;
 import org.graalvm.polyglot.Context;
+import org.graalvm.polyglot.Engine;
 import org.graalvm.polyglot.Value;
 
 public class Script {
 
-  private static List<Script> scripts = new ArrayList<>();
+  private static HashMap<String, Script> scripts = new HashMap<>();
+
+  public static final Engine engine = Engine.newBuilder("js").option("engine.WarnInterpreterOnly", "false").build();
 
   private Context ctx;
   private String script;
@@ -33,36 +40,43 @@ public class Script {
   private List<CustomSubscribeMethod> events = new ArrayList<>();
   boolean running;
 
-  public static Script create(String name, String script){
-    Script s = new Script(name, script);
-    scripts.add(s);
+  public static Script create(String name, String script) throws IllegalStateException{
+    if(scripts.containsKey(name.toLowerCase())){
+      throw new IllegalStateException("A script with the same name already exists");
+    }
+    Script s = new Script(name.toLowerCase(), script);
+    s.createNewContext();
+    scripts.put(name.toLowerCase(), s);
     return s;
   }
 
-  public static Script create(String name, String script, Path location){
-    Script s = new Script(name, script, location);
-    scripts.add(s);
+  public static Script create(String name, String script, Path location) throws IllegalStateException{
+    if(scripts.containsKey(name.toLowerCase())){
+      throw new IllegalStateException("A script with the same name already exists");
+    }
+    Script s = new Script(name.toLowerCase(), script, location);
+    s.createNewContext();
+    scripts.put(name.toLowerCase(), s);
     return s;
   }
 
-  public static Script create(String name, String script, Path location, Path root){
-    Script s = new Script(name, script, location, root);
-    scripts.add(s);
+  public static Script create(String name, String script, Path location, Path root) throws IllegalStateException{
+    if(scripts.containsKey(name.toLowerCase())){
+      throw new IllegalStateException("A script with the same name already exists");
+    }
+    Script s = new Script(name.toLowerCase(), script, location, root);
+    s.createNewContext();
+    scripts.put(name.toLowerCase(), s);
     return s;
   }
 
-  public static List<Script> getScripts(){
-    return new ArrayList<>(scripts);
+  public static HashMap<String, Script> getScripts(){
+    return new HashMap<>(scripts);
   }
 
   private Script(String name, String script){
     this.name = name;
     this.script = script;
-    this.ctx = Context.newBuilder().allowAllAccess(true).option("js.ecmascript-version", "13").option("engine.WarnInterpreterOnly", "false").option("js.commonjs-require", "true").option("js.commonjs-require-cwd", Constants.Files.CONFIGS.toAbsolutePath().toString()).build();
-    Value jsBindings = this.ctx.getBindings("js");
-    jsBindings.putMember("Script", this);
-    jsBindings.putMember("Reflection", new RefelctionBridge());
-    //Value polyglotBindings = this.ctx.getPolyglotBindings();
   }
 
   private Script(String name, String script, Path location){
@@ -77,22 +91,74 @@ public class Script {
 
   public void start() throws IllegalStateException{
     if(running){
-      throw new IllegalStateException("Script already running");
+      throw new IllegalStateException("Script is already running");
+    }
+    if(ctx==null){
+      createNewContext();
     }
     this.running = true;
     this.ctx.eval("js", this.script);
   }
 
+  private void createNewContext(){
+    this.ctx = Context.newBuilder()
+        .engine(engine)
+        .allowAllAccess(true)
+        .option("js.ecmascript-version", "13")
+        .option("js.commonjs-require", "true")
+        .option("js.commonjs-require-cwd", Constants.Files.CONFIGS.toAbsolutePath().toString())
+        .build();
+    Value jsBindings = this.ctx.getBindings("js");
+    jsBindings.putMember("Script", this);
+  }
+
   public void stop() throws IllegalStateException{
-    if(running){
+    if(running&&ctx!=null){
       this.unregisterAllCommands();
       this.unregisterAllEvents();
       this.ctx.close(true);
-      Script.scripts.remove(this);
+      this.ctx = null;
+      running = false;
     }
     else {
       throw new IllegalStateException("Script isn't running");
     }
+  }
+
+  private static String readJs(Path path) throws IllegalStateException, IllegalArgumentException, IOException {
+    if(!Files.isRegularFile(path)){
+      throw new IllegalArgumentException("The provided path is not a regular file");
+    }
+    if(!path.toString().toLowerCase().endsWith(".js")){
+      throw new IllegalArgumentException("The file does not have a .js extension");
+    }
+    File f = path.toFile();
+    FileInputStream fis = new FileInputStream(f);
+    return IOUtils.toString(fis, "UTF-8");
+  }
+
+  public static Script load(Path path) throws IllegalStateException, IllegalArgumentException, IOException {
+    path = path.toAbsolutePath();
+    Script script = Script.create(path.getFileName().toString(), readJs(path), path);
+    return script;
+  }
+
+  public void reload() throws IllegalStateException, IllegalArgumentException, IOException {
+    if(running){
+      throw new IllegalStateException("Script has to be stopped first");
+    }
+    if(this.location==null){
+      throw new IllegalStateException("This Script is not associated with any File");
+    }
+    this.script = readJs(this.location);
+    this.createNewContext();
+  }
+
+  public void unload() throws IllegalStateException{
+    if(running){
+      throw new IllegalStateException("Script has to be stopped first");
+    }
+    scripts.remove(this.name);
   }
 
   public CustomSubscribeMethod registerEvent(String className, Consumer<Event> handler){
@@ -129,7 +195,10 @@ public class Script {
     this.events.clear();
   }
 
-  public void bind(String binding, String className) throws ClassNotFoundException {
+  public void bind(String binding, String className) throws ClassNotFoundException, IllegalStateException {
+    if(ctx==null){
+      throw new IllegalStateException("Script not loaded");
+    }
     //TODO: add all methods with the name newInstance or field_*
     String code = binding + " = class {";
     Class<?> c = Class.forName(className);
@@ -149,12 +218,12 @@ public class Script {
     }
     //finalFields
     for(Field field : finalFields){
-      code += " static " + field.getName() + " = Reflection.getClass('" + field.getType().getName() + "').cast(Reflection.getClass('" + className + "').getField('" + field.getName() + "').get(null));";
+      code += " static " + field.getName() + " = Script.getClass('" + field.getType().getName() + "').cast(Script.getClass('" + className + "').getField('" + field.getName() + "').get(null));";
     }
     //Fileds
     for (Field field : fields){
-      code += " static field_" + field.getName() + "(...args) { if(args.length==1) { return Reflection.getClass('" + field.getType().getName() + "').cast(Reflection.getClass('" + className + "').getField('" + field.getName() + "').set(null, args[0]))}"
-          + " else { return Reflection.getClass('" + field.getType().getName() + "').cast(Reflection.getClass('" + className + "').getField('" + field.getName() + "').get(null));}}";
+      code += " static field_" + field.getName() + "(...args) { if(args.length==1) { return Script.getClass('" + field.getType().getName() + "').cast(Script.getClass('" + className + "').getField('" + field.getName() + "').set(null, args[0]))}"
+          + " else { return Script.getClass('" + field.getType().getName() + "').cast(Script.getClass('" + className + "').getField('" + field.getName() + "').get(null));}}";
     }
     //constructor
     code += " static newInstance(...args){";
@@ -171,13 +240,13 @@ public class Script {
         if(i2>0){
           code += "&&";
         }
-        code += "args[" + i2 + "] instanceof Reflection.getPrimitiveClass('" + par.getType().getName() + "')";
+        code += "args[" + i2 + "] instanceof Script.getPrimitiveClass('" + par.getType().getName() + "')";
       }
-      code += "){ return Reflection.getClass('" + className + "').cast(Reflection.getClass('" + className + "').getConstructor(";
+      code += "){ return Script.getClass('" + className + "').cast(Script.getClass('" + className + "').getConstructor(";
       for(int i2 = 0; i2 < con.getParameters().length; i2++){
         if(i2>0){code+=", ";}
         Parameter par = con.getParameters()[i2];
-        code += "Reflection.getPrimitiveClass('" + par.getType().getName() + "')";
+        code += "Script.getPrimitiveClass('" + par.getType().getName() + "')";
       }
       code += ").newInstance(";
       for(int i2 = 0; i2 < con.getParameters().length; i2++){
@@ -206,12 +275,12 @@ public class Script {
           if(i2>0){
             code += "&&";
           }
-          code += "args[" + i2 + "] instanceof Reflection.getPrimitiveClass('" + par.getType().getName() + "')";
+          code += "args[" + i2 + "] instanceof Script.getPrimitiveClass('" + par.getType().getName() + "')";
         }
-        code += "){ return Reflection.getClass('" + meth.getReturnType().getName() + "').cast(Reflection.getClass('" + className + "').getMethod('" + methodName + "'";
+        code += "){ return Script.getClass('" + meth.getReturnType().getName() + "').cast(Script.getClass('" + className + "').getMethod('" + methodName + "'";
         for(int i2 = 0; i2 < meth.getParameters().length; i2++){
           Parameter par = meth.getParameters()[i2];
-          code += ", Reflection.getPrimitiveClass('" + par.getType().getName() + "')";
+          code += ", Script.getPrimitiveClass('" + par.getType().getName() + "')";
         }
         code += ").invoke(null";
         for(int i2 = 0; i2 < meth.getParameters().length; i2++){
@@ -223,6 +292,13 @@ public class Script {
     }
     code += "}";
     ctx.eval("js", code);
+  }
+
+  public void eval(String script) throws IllegalStateException{
+    if(ctx==null){
+      throw new IllegalStateException("Script not loaded");
+    }
+    this.ctx.eval("js", script);
   }
 
   public boolean isRunning() {
@@ -246,5 +322,51 @@ public class Script {
 
   public String getAddonVersion() {
     return ScriptingAddon.VERSION;
+  }
+
+  public Class getPrimitiveClass(String name) throws ClassNotFoundException {
+    switch (name) {
+      case "boolean":
+        return boolean.class;
+      case "byte":
+        return byte.class;
+      case "short":
+        return short.class;
+      case "char":
+        return char.class;
+      case "int":
+        return int.class;
+      case "long":
+        return long.class;
+      case "float":
+        return float.class;
+      case "double":
+        return double.class;
+      default:
+        return Class.forName(name);
+    }
+  }
+
+  public Class getClass(String name) throws ClassNotFoundException {
+    switch (name) {
+      case "boolean":
+        return Boolean.class;
+      case "byte":
+        return Byte.class;
+      case "short":
+        return Short.class;
+      case "char":
+        return Character.class;
+      case "int":
+        return Integer.class;
+      case "long":
+        return Long.class;
+      case "float":
+        return Float.class;
+      case "double":
+        return Double.class;
+      default:
+        return Class.forName(name);
+    }
   }
 }

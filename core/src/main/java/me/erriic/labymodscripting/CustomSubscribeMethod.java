@@ -2,6 +2,8 @@ package me.erriic.labymodscripting;
 
 import java.lang.reflect.Method;
 import java.util.function.Consumer;
+import net.labymod.api.Laby;
+import net.labymod.api.client.component.Component;
 import net.labymod.api.event.Event;
 import net.labymod.api.event.LabyEvent;
 import net.labymod.api.event.method.SubscribeMethod;
@@ -24,7 +26,10 @@ public class CustomSubscribeMethod implements SubscribeMethod {
     try {
       handler.accept(event);
     } catch (Exception e){
-      e.printStackTrace();
+      Laby.labyAPI().chatProvider().chatController().addMessage(Component.text("§r[§6ScriptingAddon§r] §c" + e.getMessage()));
+      if(Laby.labyAPI().labyModLoader().isDevelopmentEnvironment()){
+        e.printStackTrace();
+      }
     }
   }
 
@@ -58,7 +63,10 @@ public class CustomSubscribeMethod implements SubscribeMethod {
     try {
       return Class.forName(className);
     } catch (ClassNotFoundException e) {
-      e.printStackTrace();
+      Laby.labyAPI().chatProvider().chatController().addMessage(Component.text("§r[§6ScriptingAddon§r] §c" + e.getMessage()));
+      if(Laby.labyAPI().labyModLoader().isDevelopmentEnvironment()){
+        e.printStackTrace();
+      }
       return Event.class;
     }
   }
