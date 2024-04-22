@@ -1,17 +1,20 @@
 # LabyModScripting
-
 This Addon for LabyMod 4 allows you to run JavaScript inside of Minecraft.
-***
+## Setup
+- Download the latest version [here](https://github.com/ErriicGit/LabyModScripting/releases/download/v1.0.1/LabyModScripting-v1.0.1.jar)
+- Place the .jar in `.minecraft\labymod-neo\addons`
 ## Command
 There is only one simple command for loading, starting and stopping the scripts.
 ```
-/script <load/start/stop/list> <name>
+/script list
+/script <load/start/stop/reload/unload> <name>
+/script <create/run> <name> <script>
 ```
 You can download the test.js from above and load it with
 ```
 /script load full/path/to/test.js
 ```
-You can then view the current Status of it by running
+You can then view the current status of it by running
 ```
 /script list
 ```
@@ -25,10 +28,24 @@ You can now stop it with
 ```
 /script stop test.js
 ```
-***
-## Classes
-There is a handful of Classes that allow you to interact with the Game.  
-So far there is:
+If you edited the script and want to reload it, you can do it like this
+```
+/script reload test.js
+```
+You can also unload a script with
+```
+/script unload test.js
+```
+It's also possible to run code inside a script using the following command
+```
+/srcipt run test.js console.log("test");
+```
+You can also create small scripts with
+```
+/script create test2 msg = "test2"; console.log(msg);
+```
+## Binding
+There is currently only one Binding provided by the addon:
 >### Script
 > For interaction with the own script and adding Commands as well as Listeners
 > - ``bind(String binding, String className)`` This method is used to bind Classes. It creates a javascript interface for the java class using reflections
