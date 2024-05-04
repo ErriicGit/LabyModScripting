@@ -72,7 +72,7 @@ There is currently only one Binding provided by the addon:
 > ```
 > ##### Events
 > ```
-> worldEvent = Script.registerEvent("net.labymod.api.event.client.world.WorldEnterEvent", (event) -> {
+> worldEvent = Script.registerEvent("net.labymod.api.event.client.world.WorldEnterEvent", (event) => {
 >   console.log("Hello World");
 > });
 > Script.unregisterEvent(worldEvent);
