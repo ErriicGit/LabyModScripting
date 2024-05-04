@@ -89,3 +89,4 @@ There is currently only one Binding provided by the addon:
 - A text-editor with syntax-highlighting and suggestions
 - Installation of scripts
 - An easy way to add and access settings fom scripts
+- A ``wait()`` function
